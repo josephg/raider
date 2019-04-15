@@ -1,0 +1,14 @@
+{
+  "name": "wowish",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Joseph Gentle <me@josephg.com>",
+  "license": "none",
+  "private": true,
+  "dependencies": {
+    "@types/node": "^11.13.0",
+    "browserify": "^16.2.3",
+    "tsify": "^4.0.1",
+    "typescript": "^3.4.2"
+  }
+}
