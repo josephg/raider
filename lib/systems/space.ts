@@ -16,6 +16,8 @@ const enum ContactType {
   Removed = 1,
 }
 
+let debugText = ''
+
 const pred = (e: Entity) => e.collider && e.transform && e.shape
 const spaceSystem: System = {
   pred,
@@ -37,6 +39,14 @@ const spaceSystem: System = {
     }
   },
 
+  renderDebug(ctx) {
+    if (debugText !== '') {
+      ctx.font = '14px sans-serif'
+      ctx.fillStyle = 'white'
+      ctx.fillText(debugText, 20, 20)
+    }
+  },
+
   update(es) {
     for (const e of eachEntity(es, e => pred(e) && e.movable)) {
       const {x, y, angle} = e.transform!
@@ -45,26 +55,51 @@ const spaceSystem: System = {
 
     world.update()
 
-    const contacts = world.contact_events()
-    for (let i = 0; i < contacts.length; i += 3) {
-      const type = contacts[i] as ContactType
-      const a = entityByRef.get(contacts[i+1])!
-      const b = entityByRef.get(contacts[i+2])!
+    const contact_pairs = world.contact_pairs()
+    // if (contact_pairs.length) console.log('contact pairs', contact_pairs)
+    for (let i = 0; i < contact_pairs.length; i += 5) {
+      const a = entityByRef.get(contact_pairs[i+0])!
+      const b = entityByRef.get(contact_pairs[i+1])!
+      const nx = contact_pairs[i+2]
+      const ny = contact_pairs[i+3]
+      const depth = contact_pairs[i+4]
 
-      if (type === ContactType.Added) {
-        if (a.collider!.cgroup === CGroup.Player) a!.shape!.color = 'blue'
-        else b!.shape!.color = 'blue'
-
-        world.get_contact(contacts[i+1], contacts[i+2])
-      } else {
-        if (a.collider!.cgroup === CGroup.Player) a!.shape!.color = 'green'
-        else b!.shape!.color = 'green'
-      }
-
+      const e = (a.collider!.cgroup === CGroup.Player) ? a : b
+      const m = (a.collider!.cgroup === CGroup.Player) ? -1 : 1
+      e.transform!.x += (depth + 0.01) * nx * m
+      e.transform!.y += (depth + 0.01) * ny * m
 
     }
 
-    if (contacts.length) console.log('contacts', contacts)
+    debugText = "last contacts: " + contact_pairs.length / 5 + ' :' + contact_pairs.join(', ')
+
+    const contacts = world.contact_events()
+    // for (let i = 0; i < contacts.length; i += 3) {
+    //   const type = contacts[i] as ContactType
+    //   const a = entityByRef.get(contacts[i+1])!
+    //   const b = entityByRef.get(contacts[i+2])!
+
+    //   if (type === ContactType.Added) {
+    //     const e = (a.collider!.cgroup === CGroup.Player) ? a : b
+    //     e.shape!.color = 'blue'
+
+    //     const contact = world.get_contact(contacts[i+1], contacts[i+2])
+    //     if (contact.length === 0) throw Error('Huh? this is invalid')
+    //     const [awx, awy, bwx, bwy, nx, ny, depth] = contact
+    //     console.log('cntact', contact)
+
+    //     // Move the object so its not colliding anymore.
+    //     e.transform!.x -= depth * nx * 10
+    //     e.transform!.y -= depth * ny * 10
+    //   } else {
+    //     if (a.collider!.cgroup === CGroup.Player) a!.shape!.color = 'green'
+    //     else b!.shape!.color = 'green'
+    //   }
+
+
+    // }
+
+    // if (contacts.length) console.log('contacts', contacts)
   },
 
   onRemoved(e) {

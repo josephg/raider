@@ -1,5 +1,6 @@
 import { Entities, eachEntity, TransformC, Entity } from "../components/entities";
 import System from './system'
+import { screenToWorld } from "../render";
 
 const keysHeld = new Set()
 const keysPressedThisFrame = []
@@ -22,11 +23,9 @@ window.onblur = () => {
   keysHeld.clear()
 }
 
-declare const width: number
-declare const height: number
 window.onmousemove = e => {
-  mouse.x = e.offsetX - width/2
-  mouse.y = e.offsetY - height/2
+  const {x, y} = screenToWorld(e.offsetX, e.offsetY)
+  mouse.x = x; mouse.y = y
 }
 
 const dt = 1/60

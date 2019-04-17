@@ -107,12 +107,17 @@ impl World {
             CGroup::Static => self.static_groups,
             CGroup::Player => self.player_groups,
         };
+        let prox = match cgroup {
+            // CGroup::Static => GeometricQueryType::Proximity(0.0),
+            CGroup::Static => GeometricQueryType::Contacts(0.0, 0.0),
+            CGroup::Player => GeometricQueryType::Contacts(0.0, 0.0),
+        };
 
         let obj = self.world.add(
             pos,
             shape.0,
             cg,
-            GeometricQueryType::Contacts(0.0, 0.0),
+            prox,
             ()
         );
 
@@ -128,6 +133,22 @@ impl World {
 
     pub fn update(&mut self) {
         self.world.update();
+    }
+
+    pub fn contact_pairs(&self) -> Box<[f64]> {
+        let mut result = Vec::<f64>::new();
+
+        for (h1, h2, _algorithm, manifold) in self.world.contact_pairs(true) {
+            let deepest = manifold.deepest_contact().unwrap();
+            result.push(h1.0 as f64);
+            result.push(h2.0 as f64);
+
+            result.push(deepest.contact.normal[0]);
+            result.push(deepest.contact.normal[1]);
+            result.push(deepest.contact.depth);
+        }
+
+        result.into_boxed_slice()
     }
 
     pub fn contact_events(&self) -> Box<[u32]> {
@@ -148,7 +169,7 @@ impl World {
         result.into_boxed_slice()
     }
 
-    pub fn get_contact(&self, h1: usize, h2: usize) {
+    pub fn get_contact(&self, h1: usize, h2: usize) -> Box<[f64]> {
         let c1 = self.world.collision_object(CollisionObjectHandle(h1)).unwrap();
         let c2 = self.world.collision_object(CollisionObjectHandle(h2)).unwrap();
 
@@ -160,7 +181,18 @@ impl World {
             0.0
         );
 
-        console_log!("contact {:?}", c);
+        // console_log!("contact {:?}", c);
+        if let Some(c) = c {
+            vec![
+                c.world1[0], c.world1[1],
+                c.world2[0], c.world2[1],
+                c.normal[0], c.normal[1],
+                c.depth
+            ].into_boxed_slice()
+        } else {
+            Box::new([])
+        }
+
     }
 }
 

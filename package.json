@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "parcel --no-hmr index.html",
-    "build": "parcel build index.html"
+    "build": "parcel build --public-url ./ index.html"
   },
   "dependencies": {
     "@types/node": "^11.13.0",

@@ -10,16 +10,4 @@ canvas {
 }
 </style>
 <canvas></canvas>
-<script>
-const canvas = document.getElementsByTagName('canvas')[0]
-var width, height
-const ctx = canvas.getContext('2d')
-var resize = window.onresize = function() {
-  canvas.width = (width = canvas.clientWidth) * devicePixelRatio;
-  canvas.height = (height = canvas.clientHeight) * devicePixelRatio;
-  ctx.scale(devicePixelRatio, devicePixelRatio) // For high dpi display support
-}
-resize()
-
-</script>
-<script src="lib/core.ts"></script>
+<script src="lib/core.ts" defer></script>
