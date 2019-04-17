@@ -1,7 +1,7 @@
 // I want to trial an ECS for this codebase, but there's so many ways to
 // implement it.
-
-
+import {CGroup} from '../../crate/Cargo.toml'
+import systems from '../systems';
 // import { TransformC } from "./transform";
 
 export interface TransformC {
@@ -14,9 +14,28 @@ export interface MovableC {
   rotSpeed: number
 }
 
-export interface VisibilityC { // Requires transform
+export const enum ShapeType {
+  Circle,
+  Box,
+}
+
+export type Shape = {
+  type: ShapeType.Circle,
+  radius: number,
+} | {
+  type: ShapeType.Box,
+  w: number,
+  h: number,
+}
+
+export interface ShapeC { // Requires transform
   color: string,
-  size: number,
+  shape: Shape
+}
+
+export interface ColliderC {
+  cgroup: CGroup,
+  handle?: number, // Filled in by the space system.
 }
 
 export interface EntityComponents {
@@ -24,9 +43,12 @@ export interface EntityComponents {
   // simplest is usually best in JS land.
   transform?: TransformC,
   movable?: MovableC,
+  shape?: ShapeC,
+  collider?: ColliderC,
+
   localController?: boolean,
   behaviourController?: any, // Iterable | null or something.
-  visibility?: VisibilityC,
+
   camera?: boolean, // Singleton entity.
 }
 
@@ -43,14 +65,24 @@ export const addEntity = (es: Entities, c: EntityComponents): Entity => {
   // TODO: Might be worth enforcing some preconditions here too - render requires transform, etc.
   const e: Entity = {id: nextId++, ...c}
   es.set(e.id, e)
+
+  // TODO: I don't like this direct dependancy here.
+  for (const s of systems) if (s.onAdded) s.onAdded(e)
+
   return e
 }
 
 // This isn't ideal... but ok for now.
-export function *eachEntity(es: Entities, pred: (e: Entity) => any): IterableIterator<Entity> {
-  for (const e of es.values()) {
-    if (pred(e)) yield e
-  }
+// export function *eachEntity(es: Entities, pred: (e: Entity) => any): IterableIterator<Entity> {
+//   for (const e of es.values()) {
+//     if (pred(e)) yield e
+//   }
+// }
+export function eachEntity(es: Entities, pred: (e: Entity) => any): IterableIterator<Entity> {
+  return Array.from(es.values()).filter(pred).values()
+  // for (const e of es.values()) {
+  //   if (pred(e)) yield e
+  // }
 }
 
 export function getSingleton(es: Entities, pred: (e: Entity) => any): Entity {

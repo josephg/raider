@@ -1,4 +1,5 @@
 import { Entities, eachEntity, TransformC, Entity } from "../components/entities";
+import System from './system'
 
 const keysHeld = new Set()
 const keysPressedThisFrame = []
@@ -57,30 +58,36 @@ const lookTowardXY = (e: Entity, budget: number, x: number, y: number) => {
   lookTowardA(e, budget, angle)
 }
 
-export function localController(es: Entities) {
-  for (const e of eachEntity(es, e => e.localController && e.transform && e.movable)) {
-      
-    const playerSpeed = e.movable!.speed
-    if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
-    if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
-    if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
-    if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
+export const localController: System = {
+  pred: e => e.localController && e.transform && e.movable,
+  update(es: Entities) {
+    for (const e of eachEntity(es, localController.pred)) {
+        
+      const playerSpeed = e.movable!.speed
+      if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
+      if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
+      if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
+      if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
 
-    // Look at the mouse
-    lookTowardXY(e, 1, mouse.y - e.transform!.y, mouse.x - e.transform!.x)
+      // Look at the mouse
+      lookTowardXY(e, 1, mouse.y - e.transform!.y, mouse.x - e.transform!.x)
 
-    // Global movement controls
-    // if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
-    // if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
-    // if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
-    // if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
+      // Global movement controls
+      // if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
+      // if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
+      // if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
+      // if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
+    }
+
+    keysPressedThisFrame.length = 0
   }
-
-  keysPressedThisFrame.length = 0
 }
 
-export function behaviour(es: Entities) {
-  for (const e of eachEntity(es, e => e.behaviourController && e.transform && e.movable)) {
-    // !?
+export const behaviour: System = {
+  pred: e => e.behaviourController && e.transform && e.movable,
+  update(es: Entities) {
+    for (const e of eachEntity(es, behaviour.pred)) {
+      // !?
+    }
   }
 }

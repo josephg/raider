@@ -1,4 +1,4 @@
-import { Entities, eachEntity, getSingleton } from "./components/entities";
+import { Entities, eachEntity, getSingleton, ShapeType } from "./components/entities";
 
 const TAU = Math.PI * 2
 declare const ctx: CanvasRenderingContext2D
@@ -16,19 +16,32 @@ export default function render(es: Entities) {
   const {x: cameraX, y: cameraY} = getSingleton(es, e => e.camera && e.transform).transform!
   ctx.translate(width/2 - cameraX, height/2 - cameraY)
 
-  for (const e of eachEntity(es, e => e.visibility && e.transform)) {
+  for (const e of eachEntity(es, e => e.shape && e.transform)) {
     const {x, y, angle} = e.transform!
-    const {size} = e.visibility!
-    ctx.beginPath()
-    circle(x, y, size)
+    const {shape, color} = e.shape!
 
-    ctx.moveTo(x, y)
-    ctx.lineTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size)
+    if (shape.type === ShapeType.Circle) {
+      ctx.beginPath()
+      let {radius} = shape
+      circle(x, y, radius)
 
-    ctx.fillStyle = e.visibility!.color
-    ctx.fill()
-    ctx.strokeStyle = 'white'
-    ctx.stroke()
+      ctx.moveTo(x, y)
+      ctx.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.strokeStyle = 'white'
+      ctx.stroke()
+    } else if (shape.type === ShapeType.Box) {
+      const {w, h} = shape
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(angle)
+      ctx.fillStyle = color
+      ctx.fillRect(-w/2, -h/2, w, h)
+      ctx.strokeStyle = 'white'
+      ctx.strokeRect(-w/2, -h/2, w, h)
+      ctx.restore()
+    }
   }
   ctx.restore()
 }
