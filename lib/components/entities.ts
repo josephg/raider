@@ -7,10 +7,13 @@ import systems from '../systems';
 export interface TransformC {
   x: number, y: number,
   angle: number, // In radians from the azimuth.
+
+  // Instantaneous frame velocity
+  vx: number, vy: number, va: number,
 }
 
 export interface MovableC {
-  speed: number, // Pixels / second
+  maxSpeed: number, // Linear units / second.
   rotSpeed: number
 }
 

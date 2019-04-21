@@ -4,25 +4,28 @@ import update from "./update"
 import * as wasm from '../crate/Cargo.toml'
 import { CGroup } from "../crate/Cargo.toml";
 
-const es: Entities = new Map<number, Entity>()
+wasm.init()
 
+const es: Entities = new Map<number, Entity>()
+const stationary = {vx: 0, vy: 0, va: 0}
 addEntity(es, {
-  transform: {x: 0, y: 0, angle: 0},
+  transform: {x: 0, y: 0, angle: 0, ...stationary},
   movable: {
-    speed: 3,
+    maxSpeed: 3,
+    // maxSpeed: 30,
     rotSpeed: 0.1,
   },
   shape: {
     color: 'green',
-    shape: {
-      type: ShapeType.Box,
-      w: 0.6,
-      h: 1,
-    }
     // shape: {
-    //   type: ShapeType.Circle,
-    //   radius: 0.5,
+    //   type: ShapeType.Box,
+    //   w: 0.6,
+    //   h: 5,
     // }
+    shape: {
+      type: ShapeType.Circle,
+      radius: 0.5,
+    }
   },
   collider: {
     cgroup: CGroup.Player,
@@ -31,7 +34,8 @@ addEntity(es, {
 })
 
 addEntity(es, {
-  transform: {x: 3, y: 1, angle: 0},
+  // transform: {x: 1.57, y: 0, angle: 0, ...stationary},
+  transform: {x: 2.5, y: 1, angle: 0, ...stationary},
   shape: {
     color: 'red',
     shape: {
@@ -44,7 +48,7 @@ addEntity(es, {
   },
 })
 addEntity(es, {
-  transform: {x: 4.5, y: 0, angle: 0},
+  transform: {x: 4.5, y: 0, angle: 0, ...stationary},
   shape: {
     color: 'red',
     shape: {
@@ -57,12 +61,12 @@ addEntity(es, {
   },
 })
 addEntity(es, {
-  transform: {x: 11, y: 0, angle: 0},
+  transform: {x: 8, y: -2, angle: 1, ...stationary},
   shape: {
     color: 'red',
     shape: {
       type: ShapeType.Box,
-      w: 10,
+      w: 5,
       h: 5,
     }
   },
@@ -85,26 +89,26 @@ addEntity(es, {
 
 // Singleton camera.
 addEntity(es, {
-  transform: {x: 0, y: 0, angle: 0},
+  transform: {x: 0, y: 0, angle: 0, ...stationary},
   camera: true,
 })
 
-let running = true
+let running = document.hasFocus()
 const frame = () => {
-  if (!running) return
-
   update(es)
   render(es)
-
-  requestAnimationFrame(frame)
+  
+  if (running) requestAnimationFrame(frame)
 }
 frame()
 
-window.onblur = () => {
+document.onblur = () => {
   running = false
+  console.log('paused')
 }
-window.onfocus = () => {
+document.onfocus = () => {
   running = true
+  console.log('resumed')
   frame()
 }
 

@@ -3,9 +3,9 @@ use wasm_bindgen::prelude::*;
 use ncollide2d::world::*;
 use ncollide2d::shape::*;
 use ncollide2d::math::*;
-use ncollide2d::query::*;
-use ncollide2d::events::*;
-use ncollide2d::bounding_volume;
+use ncollide2d::query;
+// use ncollide2d::events::*;
+// use ncollide2d::bounding_volume;
 
 // use web_sys::console;
 // use na::{Vector2};
@@ -15,6 +15,12 @@ use ncollide2d::bounding_volume;
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+type N = f64;
+
+fn v_perp(v: Vector<N>) -> Vector<N> {
+    Vector::new(v.y, -v.x)
+}
 
 #[wasm_bindgen]
 extern "C" {
@@ -100,17 +106,17 @@ impl World {
         }
     }
 
-    pub fn add(&mut self, x: f64, y: f64, shape: LocalShapeHandle, cgroup: CGroup) -> usize {
-        let pos = Isometry::new(Vector::new(x, y), 0.0);
+    pub fn add(&mut self, x: f64, y: f64, a: f64, shape: LocalShapeHandle, cgroup: CGroup, linear_speed: f64) -> usize {
+        let pos = Isometry::new(Vector::new(x, y), a);
 
         let cg = match cgroup {
             CGroup::Static => self.static_groups,
             CGroup::Player => self.player_groups,
         };
         let prox = match cgroup {
-            // CGroup::Static => GeometricQueryType::Proximity(0.0),
-            CGroup::Static => GeometricQueryType::Contacts(0.0, 0.0),
-            CGroup::Player => GeometricQueryType::Contacts(0.0, 0.0),
+            CGroup::Static => GeometricQueryType::Proximity(0.0),
+            // CGroup::Static => GeometricQueryType::Contacts(0.0, 0.0),
+            CGroup::Player => GeometricQueryType::Contacts(linear_speed, 0.0),
         };
 
         let obj = self.world.add(
@@ -129,6 +135,104 @@ impl World {
             CollisionObjectHandle(handle),
             Isometry::new(Vector::new(x, y), a)
         );
+    }
+
+    pub fn try_move(&mut self, handle: usize, vx: f64, vy: f64, va: f64) -> Box<[f64]> {
+        // console_log!("try move {} {} {}", handle, vx, vy);
+        let handle = CollisionObjectHandle(handle);
+        let mut vel = Vector::new(vx, vy);
+        // let mut vnorm = vel.normalize();
+        // let velIso = Isometry::new(vel, va);
+        let co = self.world.collision_object(handle).unwrap();
+        let mut pos = co.position().clone();
+        let shape = co.shape();
+        let mut t_remaining = 1.0;
+        if let Some(iter) = self.world.proximities_with(handle, false) {
+            // We need to run through the proximities a few times. This is a bit
+            // inefficient - the list will almost always only have one element.
+            // As always, it'd be nice to have a vec-ish type which has a hot
+            // path for 1 element.
+            let other_handles = iter.map(|(h1, h2, _alg)| {
+                if h1 == handle {h2} else {h1}
+            }).collect::<Vec<_>>();
+
+            // if other_handles.len() > 0 {
+            //     console_log!("checking against other handles {:?}", other_handles);
+            // }
+
+            while t_remaining > 0.001 { // And non-zero velocity?
+                // 1. Find the first object we collide with.
+                let mut first_collide = None;
+                let mut collide_at = t_remaining;
+
+                for other_handle in other_handles.iter() {
+                    let co2 = self.world.collision_object(*other_handle).unwrap();
+                    let pos2 = co2.position();
+                    let shape2 = co2.shape();
+
+                    // For now, everything we might collide with is static. So
+                    // we'll predict off that assumption.
+                    if let Some(time) = query::time_of_impact(
+                        &pos, &vel, shape.as_ref(),
+                        pos2, &Vector::zeros(), shape2.as_ref())
+                    {
+                        if time < collide_at {
+                            collide_at = time;
+                            first_collide = Some(other_handle);
+                        }
+                    }
+                }
+
+                match first_collide {
+                    None => {
+                        // Great! No collision. We can just move forward by the requested amount.
+                        pos = pos * Isometry::new(vel, va);
+                        break;
+                    },
+                    Some(other_handle) => {
+                        let co2 = self.world.collision_object(*other_handle).unwrap();
+                        let pos2 = co2.position();
+                        let shape2 = co2.shape();
+                        // We're going to hit this object. First we need the
+                        // collision normal. Sadly time_of_impact doesn't return
+                        // it, so we'll need to recaculate the collision.
+                        if let Some(contact) = query::contact(
+                            &(pos * Isometry::new(vel * (collide_at * 1.001), 0.0)), shape.as_ref(),
+                            pos2, shape2.as_ref(),
+                            0.01)
+                        {
+                            // Let the object move forward to this point. Trim t_remaining. Project velocity.
+                            // console_log!("before: pos {:?} vel {:?} t {} ct {} norm {:?}", pos, vel, t_remaining, collide_at, contact.normal);
+                            pos = pos * Isometry::new(vel * collide_at - contact.normal.as_ref() * 0.001, 0.0);
+                            t_remaining -= collide_at;
+                            let tangent = v_perp(contact.normal.into_inner());
+                            vel = tangent * tangent.dot(&vel);
+                            // console_log!("->    : pos {:?} vel {:?} t {:?}", pos, vel, t_remaining);
+                        } else {
+                            // What happens? Should we quietly ignore this?
+                            console_log!("Else pos {:?} vel {:?} pos2 {:?} t {}", pos, vel, pos2, collide_at);
+                            console_log!("distance {:?}", query::distance(
+                                &(pos * Isometry::new(vel * collide_at, 0.0)), shape.as_ref(),
+                                pos2, shape2.as_ref()
+                            ));
+                            panic!("No contact found");
+                        }
+                    }
+                }
+                // console_log!("t_remaining -> {}", t_remaining);
+
+                // if other_handles.len() > 0 {
+                //     console_log!("v {:?} -> ({:?})", vel, pos);
+                // }
+            }
+        } else {
+            pos = pos * Isometry::new(vel, 0.0);
+        }
+
+        self.world.set_position(handle, pos);
+
+        // TODO: Return result, and return the normal
+        vec![pos.translation.x, pos.translation.y].into_boxed_slice()
     }
 
     pub fn update(&mut self) {
@@ -151,49 +255,55 @@ impl World {
         result.into_boxed_slice()
     }
 
-    pub fn contact_events(&self) -> Box<[u32]> {
-        let mut result = Vec::<u32>::new();
-
-        // I'm sure there's a more idiomatic way to write this...
-        for evt in self.world.contact_events() {
-            let (t, h1, h2) = match evt {
-                ContactEvent::Started(h1, h2) => (0, h1, h2),
-                ContactEvent::Stopped(h1, h2) => (1, h1, h2),
-            };
-
-            result.push(t);
-            result.push(h1.0 as u32);
-            result.push(h2.0 as u32);
+    pub fn prox_events(&self) {
+        for evt in self.world.proximity_events() {
+            console_log!("Prox event {:?}", evt);
         }
+    }
+
+    // pub fn contact_events(&self) -> Box<[u32]> {
+    //     let mut result = Vec::<u32>::new();
+
+    //     // I'm sure there's a more idiomatic way to write this...
+    //     for evt in self.world.contact_events() {
+    //         let (t, h1, h2) = match evt {
+    //             ContactEvent::Started(h1, h2) => (0, h1, h2),
+    //             ContactEvent::Stopped(h1, h2) => (1, h1, h2),
+    //         };
+
+    //         result.push(t);
+    //         result.push(h1.0 as u32);
+    //         result.push(h2.0 as u32);
+    //     }
         
-        result.into_boxed_slice()
-    }
+    //     result.into_boxed_slice()
+    // }
 
-    pub fn get_contact(&self, h1: usize, h2: usize) -> Box<[f64]> {
-        let c1 = self.world.collision_object(CollisionObjectHandle(h1)).unwrap();
-        let c2 = self.world.collision_object(CollisionObjectHandle(h2)).unwrap();
+    // pub fn get_contact(&self, h1: usize, h2: usize) -> Box<[f64]> {
+    //     let c1 = self.world.collision_object(CollisionObjectHandle(h1)).unwrap();
+    //     let c2 = self.world.collision_object(CollisionObjectHandle(h2)).unwrap();
 
-        let c = contact(
-            c1.position(),
-            c1.shape().as_ref(),
-            c2.position(),
-            c2.shape().as_ref(),
-            0.0
-        );
+    //     let c = contact(
+    //         c1.position(),
+    //         c1.shape().as_ref(),
+    //         c2.position(),
+    //         c2.shape().as_ref(),
+    //         0.0
+    //     );
 
-        // console_log!("contact {:?}", c);
-        if let Some(c) = c {
-            vec![
-                c.world1[0], c.world1[1],
-                c.world2[0], c.world2[1],
-                c.normal[0], c.normal[1],
-                c.depth
-            ].into_boxed_slice()
-        } else {
-            Box::new([])
-        }
+    //     // console_log!("contact {:?}", c);
+    //     if let Some(c) = c {
+    //         vec![
+    //             c.world1[0], c.world1[1],
+    //             c.world2[0], c.world2[1],
+    //             c.normal[0], c.normal[1],
+    //             c.depth
+    //         ].into_boxed_slice()
+    //     } else {
+    //         Box::new([])
+    //     }
 
-    }
+    // }
 }
 
 

@@ -34,6 +34,7 @@ const dt = 1/60
 const TAU = Math.PI * 2
 const normAngle = (a: number) => (a + TAU) % TAU // 0 to TAU.
 const turnTowardInternal = (e: TransformC, budget: number, angle: number, turnspeed: number): number => {
+  // TODO: Rewrite me to set va.
   const target = normAngle(angle)
   if (e.angle === target) return budget
 
@@ -61,12 +62,12 @@ export const localController: System = {
   pred: e => e.localController && e.transform && e.movable,
   update(es: Entities) {
     for (const e of eachEntity(es, localController.pred)) {
-        
-      const playerSpeed = e.movable!.speed
-      if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
-      if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
-      if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
-      if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
+
+      const playerSpeed = e.movable!.maxSpeed
+      if (keysHeld.has('KeyA')) e.transform!.vx -= playerSpeed
+      if (keysHeld.has('KeyD')) e.transform!.vx += playerSpeed
+      if (keysHeld.has('KeyW')) e.transform!.vy -= playerSpeed
+      if (keysHeld.has('KeyS')) e.transform!.vy += playerSpeed
 
       // Look at the mouse
       lookTowardXY(e, 1, mouse.y - e.transform!.y, mouse.x - e.transform!.x)
