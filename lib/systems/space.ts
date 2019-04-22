@@ -50,7 +50,7 @@ export const collisionSystem: System = {
         : null as any
 
       const speed = e.movable ? e.movable.maxSpeed : 0
-      const handle = e.collider!.handle = world.add(x, y, angle, shape, cgroup, speed / 60)
+      const handle = e.collider!.handle = world.add(x, y, angle, shape, cgroup, Math.SQRT2 * speed / 60)
       entityByRef.set(handle, e)
     }
   },
@@ -65,22 +65,43 @@ export const collisionSystem: System = {
 
   update(es) {
     for (const e of eachEntity(es, e => pred(e) && e.movable)) {
+      e.transform!.va = 0
       const {x, y, angle, vx, vy, va} = e.transform!
-      // world.set_position(e.collider!.handle!, x, y, angle)
       if (vx !== 0 || vy !== 0 || va !== 0) {
-        const [newx, newy] = world.try_move(e.collider!.handle!, vx * dt, vy * dt, va * dt)
-        ;[e.transform!.x, e.transform!.y] = [newx, newy]
-        e.transform!.angle += e.transform!.va
+        // console.log(vx, vy, va)
+        // e.transform!.x += e.transform!.vx * dt
+        // e.transform!.y += e.transform!.vy * dt
+        // e.transform!.angle += e.transform!.va * dt
+  
+        // e.transform!.vx = e.transform!.vy = e.transform!.va = 0
+  
+        // world.set_position(e.collider!.handle!, x, y, angle)
+
+        const [newx, newy, newa] = world.try_move(e.collider!.handle!, vx * dt, vy * dt, va * dt)
+        ;[e.transform!.x, e.transform!.y, e.transform!.angle] = [newx, newy, newa]
+        // e.transform!.angle += e.transform!.va * dt
         e.transform!.vx = e.transform!.vy = e.transform!.va = 0
       }
     }
 
-    world.update()
+    // console.log('update')
+    const fixes = world.update()
+
+    for (let i = 0; i < fixes.length; i += 3) {
+      const h = fixes[i]
+      const x = fixes[i+1]
+      const y = fixes[i+2]
+      const e = entityByRef.get(h)!
+      e.transform!.x = x
+      e.transform!.y = y
+    }
+
+    world.print_events()
 
 
 
     // const contact_pairs = world.contact_pairs()
-    // // if (contact_pairs.length) console.log('contact pairs', contact_pairs)
+    // if (contact_pairs.length) console.log('contact pairs', contact_pairs)
     // for (let i = 0; i < contact_pairs.length; i += 5) {
     //   const a = entityByRef.get(contact_pairs[i+0])!
     //   const b = entityByRef.get(contact_pairs[i+1])!
@@ -99,9 +120,8 @@ export const collisionSystem: System = {
 
 
 
-    // world.prox_events()
 
-    
+
     // const contacts = world.contact_events()
     // for (let i = 0; i < contacts.length; i += 3) {
     //   const type = contacts[i] as ContactType

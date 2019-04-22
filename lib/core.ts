@@ -13,7 +13,7 @@ addEntity(es, {
   movable: {
     maxSpeed: 3,
     // maxSpeed: 30,
-    rotSpeed: 0.1,
+    rotSpeed: 2, // rads / second.
   },
   shape: {
     color: 'green',
@@ -33,47 +33,38 @@ addEntity(es, {
   localController: true,
 })
 
-addEntity(es, {
-  // transform: {x: 1.57, y: 0, angle: 0, ...stationary},
-  transform: {x: 2.5, y: 1, angle: 0, ...stationary},
+const TAU = Math.PI * 2
+// x, y, w, h, a.
+const boxes: [number, number, number, number, number][] = [
+  [6, 3, 1, 5, 5],
+  [0.9, 4, 0.8, 5, 2],
+
+  [-10, 0, -0.2, 1, 5],
+  [-8, 2, 0.2 + TAU/4, 1, 5],
+]
+
+const circles: [number, number, number][] = [
+  [2.5, -3, 1],
+  [5, -3, 1],
+]
+
+circles.forEach(([x, y, radius]) => addEntity(es, {
+  transform: {x, y, angle: 0, ...stationary},
   shape: {
     color: 'red',
-    shape: {
-      type: ShapeType.Circle,
-      radius: 1,
-    }
+    shape: { type: ShapeType.Circle, radius, }
   },
-  collider: {
-    cgroup: CGroup.Static,
-  },
-})
-addEntity(es, {
-  transform: {x: 4.5, y: 0, angle: 0, ...stationary},
+  collider: { cgroup: CGroup.Static, },
+}))
+
+boxes.forEach(([x, y, angle, w, h]) => addEntity(es, {
+  transform: {x, y, angle, ...stationary},
   shape: {
     color: 'red',
-    shape: {
-      type: ShapeType.Circle,
-      radius: 1,
-    }
+    shape: { type: ShapeType.Box, w, h, }
   },
-  collider: {
-    cgroup: CGroup.Static,
-  },
-})
-addEntity(es, {
-  transform: {x: 8, y: -2, angle: 1, ...stationary},
-  shape: {
-    color: 'red',
-    shape: {
-      type: ShapeType.Box,
-      w: 5,
-      h: 5,
-    }
-  },
-  collider: {
-    cgroup: CGroup.Static,
-  },
-})
+  collider: { cgroup: CGroup.Static },
+}))
 
 // addEntity(es, {
 //   transform: {x: 100, y: 100, angle: 0},
@@ -102,11 +93,12 @@ const frame = () => {
 }
 frame()
 
-document.onblur = () => {
+// I would use document.onblur/focus but they don't do anything in chrome.
+window.onblur = () => {
   running = false
   console.log('paused')
 }
-document.onfocus = () => {
+window.onfocus = () => {
   running = true
   console.log('resumed')
   frame()

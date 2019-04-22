@@ -32,26 +32,25 @@ const dt = 1/60
 
 
 const TAU = Math.PI * 2
-const normAngle = (a: number) => (a + TAU) % TAU // 0 to TAU.
-const turnTowardInternal = (e: TransformC, budget: number, angle: number, turnspeed: number): number => {
-  // TODO: Rewrite me to set va.
-  const target = normAngle(angle)
-  if (e.angle === target) return budget
+const normAngle = (a: number) => (a + TAU + TAU) % TAU // 0 to TAU.
+const getAV = (currentAngle: number, budget: number, targetAngle: number, turnspeed: number): {da: number, budget: number} => {
+  const target = normAngle(targetAngle)
+  if (currentAngle === target) return {da:0, budget}
 
-  const distLeft = normAngle(e.angle - target)
-  const distRight = normAngle(target - e.angle)
-  const maxSpeed = turnspeed * budget
+  const distLeft = normAngle(currentAngle - target)
+  const distRight = normAngle(target - currentAngle)
+  const maxDA = turnspeed * budget
 
   return (distLeft < distRight) ? (
-    (distLeft < maxSpeed) ? (e.angle = target, budget - distLeft/maxSpeed) : (e.angle -= maxSpeed, 0)
+    (distLeft < maxDA) ? {da:-distLeft, budget: budget - distLeft/maxDA} : {da: -maxDA, budget: 0}
   ) : (
-    (distRight < maxSpeed) ? (e.angle = target, budget - distRight/maxSpeed) : (e.angle += maxSpeed, 0)
+    (distRight < maxDA) ? {da:distRight, budget: budget - distRight/maxDA} : {da: maxDA, budget: 0}
   )
 }
 
 const lookTowardA = (e: Entity, budget: number, angle: number) => {
   // Entity must have transform + movable.
-  turnTowardInternal(e.transform!, budget, angle, e.movable!.rotSpeed)
+  e.transform!.va = getAV(e.transform!.angle, budget, angle, e.movable!.rotSpeed / 60).da * 60
 }
 const lookTowardXY = (e: Entity, budget: number, x: number, y: number) => {
   const angle = Math.atan2(mouse.y - e.transform!.y, mouse.x - e.transform!.x)
