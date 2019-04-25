@@ -7,4 +7,13 @@ export default function update(es: Entities) {
   for (const system of systems) {
     system.update(es)
   }
+  
+  for (const e of es.values()) {
+    if (e.reap) {
+      for (const system of systems) {
+        if (system.onRemoved && system.pred(e)) system.onRemoved(es, e)
+      }
+      es.delete(e.id)
+    }
+  }
 }

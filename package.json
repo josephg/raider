@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "parcel --no-hmr index.html",
-    "build": "parcel build --public-url ./ index.html"
+    "build": "rm dist/* && cd crate && wasm-pack build && cd .. && parcel build --public-url ./ index.html && wasm-opt -O4 dist/collide_wasm_bg.*.wasm -o dist/collide_wasm_bg.*.wasm "
   },
   "dependencies": {
     "@types/node": "^11.13.0",

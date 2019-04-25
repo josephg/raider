@@ -1,6 +1,8 @@
 import { Entities, eachEntity, TransformC, Entity } from "../components/entities";
 import System from './system'
 import { screenToWorld } from "../render";
+import * as vec from '../vec'
+import { lookTowardXY, lookTowardA, moveRaw } from "./rawmovement";
 
 const keysHeld = new Set()
 const keysPressedThisFrame = []
@@ -28,35 +30,6 @@ window.onmousemove = e => {
   mouse.x = x; mouse.y = y
 }
 
-const dt = 1/60
-
-
-const TAU = Math.PI * 2
-const normAngle = (a: number) => (a + TAU + TAU) % TAU // 0 to TAU.
-const getAV = (currentAngle: number, budget: number, targetAngle: number, turnspeed: number): {da: number, budget: number} => {
-  const target = normAngle(targetAngle)
-  if (currentAngle === target) return {da:0, budget}
-
-  const distLeft = normAngle(currentAngle - target)
-  const distRight = normAngle(target - currentAngle)
-  const maxDA = turnspeed * budget
-
-  return (distLeft < distRight) ? (
-    (distLeft < maxDA) ? {da:-distLeft, budget: budget - distLeft/maxDA} : {da: -maxDA, budget: 0}
-  ) : (
-    (distRight < maxDA) ? {da:distRight, budget: budget - distRight/maxDA} : {da: maxDA, budget: 0}
-  )
-}
-
-const lookTowardA = (e: Entity, budget: number, angle: number) => {
-  // Entity must have transform + movable.
-  e.transform!.va = getAV(e.transform!.angle, budget, angle, e.movable!.rotSpeed / 60).da * 60
-}
-const lookTowardXY = (e: Entity, budget: number, x: number, y: number) => {
-  const angle = Math.atan2(mouse.y - e.transform!.y, mouse.x - e.transform!.x)
-  lookTowardA(e, budget, angle)
-}
-
 export const localController: System = {
   pred: e => e.localController && e.transform && e.movable,
   update(es: Entities) {
@@ -69,7 +42,7 @@ export const localController: System = {
       if (keysHeld.has('KeyS')) e.transform!.vy += playerSpeed
 
       // Look at the mouse
-      lookTowardXY(e, 1, mouse.y - e.transform!.y, mouse.x - e.transform!.x)
+      lookTowardXY(e, 1, {x: mouse.x, y:mouse.y})
 
       // Global movement controls
       // if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
@@ -82,11 +55,49 @@ export const localController: System = {
   }
 }
 
+
+// export function *moveTo(e: Entity, target: vec.Vec, range: number = 0) {
+//   while (moveToward(e, 1, target, range) === 0) yield
+// }
+
+export function *turnTo(e: Entity, angle: number) {
+  while (lookTowardA(e, 1, angle) === 0) yield
+}
+
+// Run iterator so long as predicate remains true
+export function *iwhile<T>(pred: () => boolean, iter: (() => IterableIterator<T>) | Iterator<T>) {
+  if (typeof iter === 'function') iter = iter() // Avoids some awkward syntax
+
+  while (true) {
+    if (!pred()) return
+    const {value, done} = iter.next()
+    if (done) return value // Wrap return value of iterator
+    else yield value
+  }
+}
+
+export function *stall(framecount: number) {
+  while (framecount--) yield
+}
+
+export function *moveForwardBehaviour(e: Entity) {
+  while (true) {
+    moveRaw(e, e.movable!.maxSpeed)
+    yield
+  }
+}
+
 export const behaviour: System = {
-  pred: e => e.behaviourController && e.transform && e.movable,
+  pred: e => e.aiController && e.transform && e.movable,
+
+  // onAdded(e: Entity) {
+  //   if (this.pred(e)) e.aiControllerInstance = e.aiController!(e)
+  // },
+
   update(es: Entities) {
     for (const e of eachEntity(es, behaviour.pred)) {
-      // !?
+      if (e.aiControllerInstance == null) e.aiControllerInstance = e.aiController!(e)
+      if (e.aiControllerInstance!.next().done) e.aiControllerInstance = undefined
     }
   }
 }

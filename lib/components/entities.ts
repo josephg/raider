@@ -41,6 +41,8 @@ export interface ColliderC {
   handle?: number, // Filled in by the space system.
 }
 
+// export type AIController = () => IterableIterator<void>
+
 export interface EntityComponents {
   // Then all the components. There's a bunch of ways this could work, but
   // simplest is usually best in JS land.
@@ -50,9 +52,12 @@ export interface EntityComponents {
   collider?: ColliderC,
 
   localController?: boolean,
-  behaviourController?: any, // Iterable | null or something.
+  aiController?: (e: Entity) => IterableIterator<void>, // Iterable | null or something.
+  aiControllerInstance?: IterableIterator<void>
 
   camera?: boolean, // Singleton entity.
+  lifetime?: number,
+  reap?: true, // flagged when the entity is ready to be destroyed.
 }
 
 export interface Entity extends EntityComponents {

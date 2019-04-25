@@ -5,7 +5,7 @@ export default interface System {
 
   onAdded?(e: Entity): void,
   update(entities: Entities): void,
-  onRemoved?(e: Entity): void,
+  onRemoved?(entities: Entities, e: Entity): void,
 
   renderDebug?(ctx: CanvasRenderingContext2D, width: number, height: number): void,
 }

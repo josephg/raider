@@ -1,11 +1,9 @@
 use std::f64;
 use wasm_bindgen::prelude::*;
-use nalgebra as na;
 use ncollide2d::world::*;
 use ncollide2d::shape::*;
 use ncollide2d::math::*;
 use ncollide2d::query;
-use ncollide2d::narrow_phase::Interaction;
 use std::convert::From;
 // use ncollide2d::events::*;
 // use ncollide2d::bounding_volume;
@@ -48,8 +46,8 @@ fn noop(_s: &String) {}
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
-    // ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-    ($($t:tt)*) => (noop(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+    // ($($t:tt)*) => (noop(&format_args!($($t)*).to_string()))
 }
 
 macro_rules! console_warn {
@@ -64,18 +62,6 @@ pub fn init() {
     // Adds 30k to bundle size
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
-}
-
-
-#[wasm_bindgen]
-#[derive(Debug)]
-pub enum MyEnum {
-    Bar, Zot
-}
-
-#[wasm_bindgen]
-pub fn take_enum(f: MyEnum) {
-    console_log!("f {:?}", f);
 }
 
 #[wasm_bindgen]
@@ -95,12 +81,14 @@ pub fn make_box(w: f64, h: f64) -> LocalShapeHandle {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CGroup {
     Static,
-    Player,
+    Unit,
+    Projectile,
 }
 
 // This stores data thats associated with each collision object on the rust side.
 #[derive(Debug)]
 struct EntityData {
+    id: u32,
     e_type: CGroup,
 }
 
@@ -109,11 +97,13 @@ pub struct World {
     world: CollisionWorld<f64, EntityData>,
 
     static_groups: CollisionGroups,
-    player_groups: CollisionGroups,
+    unit_groups: CollisionGroups,
+    projectile_groups: CollisionGroups,
 }
 
 const STATIC_GROUP: usize = 0;
-const PLAYERS_GROUP: usize = 1;
+const UNIT_GROUP: usize = 1;
+const PROJECTILES_GROUP: usize = 2;
 const EPSILON: f64 = 0.000001;
 
 #[wasm_bindgen]
@@ -124,24 +114,29 @@ impl World {
             static_groups: CollisionGroups::new()
                 .with_membership(&[STATIC_GROUP])
                 .with_blacklist(&[STATIC_GROUP]),
-            player_groups: CollisionGroups::new()
-                .with_membership(&[PLAYERS_GROUP])
-                .with_whitelist(&[STATIC_GROUP]) // Players don't self-collide.
+            unit_groups: CollisionGroups::new()
+                .with_membership(&[UNIT_GROUP])
+                .with_blacklist(&[UNIT_GROUP]), // Players don't self-collide.
+            projectile_groups: CollisionGroups::new()
+                .with_membership(&[PROJECTILES_GROUP])
+                .with_whitelist(&[STATIC_GROUP, UNIT_GROUP]),
         }
     }
 
-    pub fn add(&mut self, x: f64, y: f64, a: f64, shape: LocalShapeHandle, cgroup: CGroup, linear_speed: f64) -> usize {
+    pub fn add(&mut self, id: u32, x: f64, y: f64, a: f64, shape: LocalShapeHandle, cgroup: CGroup, linear_speed: f64) -> usize {
         let pos = Isometry::new(Vector::new(x, y), a);
 
         let cg = match cgroup {
             CGroup::Static => self.static_groups,
-            CGroup::Player => self.player_groups,
+            CGroup::Unit => self.unit_groups,
+            CGroup::Projectile => self.projectile_groups,
         };
         let prox = match cgroup {
             // CGroup::Static => GeometricQueryType::Proximity(0.0),
             CGroup::Static => GeometricQueryType::Contacts(0.0, 0.0),
-            // CGroup::Player => GeometricQueryType::Contacts(linear_speed, 0.0),
-            CGroup::Player => GeometricQueryType::Contacts(linear_speed, linear_speed),
+            // CGroup::Unit => GeometricQueryType::Contacts(linear_speed, 0.0),
+            CGroup::Unit => GeometricQueryType::Contacts(linear_speed, linear_speed),
+            CGroup::Projectile => GeometricQueryType::Proximity(0.0), // We don't care how a bullet hits you.
         };
 
         let obj = self.world.add(
@@ -149,10 +144,17 @@ impl World {
             shape.0,
             cg,
             prox,
-            EntityData { e_type: cgroup }
+            EntityData { id, e_type: cgroup }
         );
 
         obj.handle().0
+    }
+
+    pub fn remove(&mut self, handle: usize) {
+        // TODO: world.remove takes an array. It might make sense to pass an
+        // array of removed entities from javascript.
+        let handle = CollisionObjectHandle(handle);
+        self.world.remove(&[handle]);
     }
 
     pub fn set_position(&mut self, handle: usize, x: f64, y: f64, a: f64) {
@@ -216,7 +218,7 @@ impl World {
 
             // First we'll go through and pre-process all the existing contacts.
             // TODO: Clean this up - move this code above.
-            for (other_handle, contact) in other_handles.iter() {
+            for (_other_handle, contact) in other_handles.iter() {
                 if let Some((normal, depth)) = contact {
                     if *depth > -EPSILON {
                         let tangent = v_perp(*normal);
@@ -230,7 +232,7 @@ impl World {
                     }
                 }
             }
-            for (other_handle, contact) in other_handles.iter() {
+            for (_other_handle, contact) in other_handles.iter() {
                 if let Some((normal, depth)) = contact {
                     if *depth > -EPSILON {
                         // The normal points in to the object.
@@ -331,7 +333,7 @@ impl World {
                         // Also for some reason the final parameter of contact
                         // is ignored in some situations - hence * 1.001 to make
                         // sure we intersect.
-                        if let Some((normal, depth)) = contact /*query::contact(
+                        if let Some((normal, _depth)) = contact /*query::contact(
                             &(Isometry::new(vel * (collide_at * 1.001), 0.0) * pos), shape.as_ref(),
                             pos2, shape2.as_ref(),
                             0.01)*/
@@ -396,7 +398,7 @@ impl World {
             }
         } else {
             // We never seem to get here. Should be fine, but not tested.
-            // console_log!("Unexpect B");
+            console_log!("B");
             pos.append_translation_mut(&Translation::from(vel));
         }
 
@@ -413,63 +415,53 @@ impl World {
         // be possible if the moving object is not a circle.
         let mut result = Vec::<f64>::new();
 
-        // for (h1, h2, interaction) in self.world.interaction_pairs(true) {
-        //     match interaction {
-        //         Interaction::Contact(_, _) => console_log!("contact"),
-        //         Interaction::Proximity(_) => console_log!("proximity"),
-        //     }
-        //     // console_log!("interaction pair {:?}", pair);
-        // }
+        let pairs = self.world.contact_pairs(true).filter_map(|(h1, h2, _a, manifold)| {
+            let c1 = self.world.collision_object(h1).unwrap();
+            let c2 = self.world.collision_object(h2).unwrap();
 
-        // let pairs = self.world.contact_pairs(true).map(|(h1, h2, _a, manifold)| {
-        //     let c1 = self.world.collision_object(h1).unwrap();
-        //     let c2 = self.world.collision_object(h2).unwrap();
+            let (h, id, mut pos, m) = if c1.data().e_type == CGroup::Static {
+                (h2, c2.data().id, c2.position().clone(), 1.0)
+            } else {
+                (h1, c1.data().id, c1.position().clone(), -1.0)
+            };
+            let deepest = manifold.deepest_contact().unwrap();
 
-        //     let (hmovable, mut pos, m) = if c1.data().e_type == CGroup::Player {
-        //         (h1, c1.position().clone(), -1.0)
-        //     } else {
-        //         (h2, c2.position().clone(), 1.0)
-        //     };
-        //     let deepest = manifold.deepest_contact().unwrap();
+            // This is the delta we need to move by to make the object no longer
+            // colliding. This teleports it straight out - but it might be
+            // better to move it by a small amount each frame instead.
+            let depth = deepest.contact.depth;
+            if depth > EPSILON {
+                let delta = (deepest.contact.depth + 0.01) * m * deepest.contact.normal.into_inner();
+                pos.append_translation_mut(&Translation::from(delta));
+                Some((h, id, pos))
+            } else { None }
+        }).collect::<Vec<_>>(); // I hate making this copy.
 
-        //     // This is the delta we need to move by to make the object no longer
-        //     // colliding. This teleports it straight out - but it might be
-        //     // better to move it by a small amount each frame instead.
-        //     let delta = (deepest.contact.depth + 0.01) * m * deepest.contact.normal.into_inner();
-        //     pos.append_translation_mut(&Translation::from(delta));
-        //     (hmovable, pos)
-        // }).collect::<Vec<_>>(); // I hate making this copy.
+        for (h, id, new_pos) in pairs.iter() {
+            self.world.set_position(*h, *new_pos);
 
-        // for (h, new_pos) in pairs.iter() {
-        //     // let deepest = manifold.deepest_contact().unwrap();
-
-        //     // let c1 = self.world.collision_object(h1).unwrap();
-        //     // let c2 = self.world.collision_object(h2).unwrap();
-            
-        //     // let (hmovable, m) = if c1.data().e_type == CGroup::Player { (h1, -1) } else { (h2, 1) };
-        //     // let c = self.world.collision_object_mut(*h);
-        //     self.world.set_position(*h, *new_pos);
-
-        //     // And tell the JS code about the change.
-        //     result.push(h.0 as f64);
-        //     result.push(new_pos.translation.x);
-        //     result.push(new_pos.translation.y);
-        // }
+            // And tell the JS code about the change.
+            result.push(*id as f64);
+            result.push(new_pos.translation.x);
+            result.push(new_pos.translation.y);
+        }
 
         result.into_boxed_slice()
     }
 
-    pub fn contact_pairs(&self) -> Box<[f64]> {
-        let mut result = Vec::<f64>::new();
+    // This is edge triggering collisions. There are some instances where this
+    // isn't ideal - but I'll cross that bridge when I get to it.
+    pub fn proximity_events(&self) -> Box<[u32]> {
+        let mut result = Vec::<u32>::new();
 
-        for (h1, h2, _algorithm, manifold) in self.world.contact_pairs(true) {
-            let deepest = manifold.deepest_contact().unwrap();
-            result.push(h1.0 as f64);
-            result.push(h2.0 as f64);
+        for evt in self.world.proximity_events() {
+            if evt.new_status == query::Proximity::Intersecting {
+                let c1 = self.world.collision_object(evt.collider1).unwrap();
+                let c2 = self.world.collision_object(evt.collider2).unwrap();
 
-            result.push(deepest.contact.normal[0]);
-            result.push(deepest.contact.normal[1]);
-            result.push(deepest.contact.depth);
+                result.push(c1.data().id as u32);
+                result.push(c2.data().id as u32);
+            }
         }
 
         result.into_boxed_slice()
@@ -483,102 +475,4 @@ impl World {
             console_log!("Contact event {:?}", evt);
         }
     }
-
-    // pub fn contact_events(&self) -> Box<[u32]> {
-    //     let mut result = Vec::<u32>::new();
-
-    //     // I'm sure there's a more idiomatic way to write this...
-    //     for evt in self.world.contact_events() {
-    //         let (t, h1, h2) = match evt {
-    //             ContactEvent::Started(h1, h2) => (0, h1, h2),
-    //             ContactEvent::Stopped(h1, h2) => (1, h1, h2),
-    //         };
-
-    //         result.push(t);
-    //         result.push(h1.0 as u32);
-    //         result.push(h2.0 as u32);
-    //     }
-        
-    //     result.into_boxed_slice()
-    // }
-
-    // pub fn get_contact(&self, h1: usize, h2: usize) -> Box<[f64]> {
-    //     let c1 = self.world.collision_object(CollisionObjectHandle(h1)).unwrap();
-    //     let c2 = self.world.collision_object(CollisionObjectHandle(h2)).unwrap();
-
-    //     let c = contact(
-    //         c1.position(),
-    //         c1.shape().as_ref(),
-    //         c2.position(),
-    //         c2.shape().as_ref(),
-    //         0.0
-    //     );
-
-    //     // console_log!("contact {:?}", c);
-    //     if let Some(c) = c {
-    //         vec![
-    //             c.world1[0], c.world1[1],
-    //             c.world2[0], c.world2[1],
-    //             c.normal[0], c.normal[1],
-    //             c.depth
-    //         ].into_boxed_slice()
-    //     } else {
-    //         Box::new([])
-    //     }
-
-    // }
 }
-
-
-// #[wasm_bindgen]
-// pub fn list() -> Box<[JsValue]> {
-//     vec![JsValue::NULL, JsValue::from_f64(123.0)].into_boxed_slice()
-// }
-
-// #[wasm_bindgen]
-// pub fn stuff() {
-//     let mut world = CollisionWorld::<f64, ()>::new(0.02);
-//     let b1 = Ball::new(1.0);
-//     let b2 = Ball::new(1.0);
-//     let b1_pos = Isometry::new(Vector::new(0.5, 1.0), 0.0);
-//     let b2_pos = Isometry::new(Vector::new(0.0, 0.0), 0.0);
-
-//     let aabb1 = bounding_volume::aabb::aabb(&b1, &b1_pos);
-//     console_log!("{:?}", aabb1);
-
-//     world.add(b1_pos, ShapeHandle::new(b1), CollisionGroups::new(), GeometricQueryType::Contacts(0.0, 0.0), ());
-//     let co = world.add(b2_pos, ShapeHandle::new(b2), CollisionGroups::new(), GeometricQueryType::Contacts(0.0, 0.0), ()).handle();
-
-//     world.update();
-//     for evt in world.contact_events() {
-//         console_log!("c {:?}", evt);
-//         if let ContactEvent::Started(h1, h2) = evt {
-//             let c1 = world.collision_object(h1.clone()).unwrap();
-//             let c2 = world.collision_object(h2.clone()).unwrap();
-//             // let s1 = c1.shape().as_shape::<Ball<f64>>().unwrap();
-//             // let c = contact(c1.position(), &Ball::new(1.0), c2.position(), &Ball::new(1.0), 0.0);
-//             let c = contact(
-//                 c1.position(),
-//                 c1.shape().as_ref(),
-//                 c2.position(),
-//                 c2.shape().as_ref(),
-//                 0.0
-//             );
-//             console_log!("contact {:?}", c);
-//         }
-//     }
-//     for evt in world.proximity_events() {
-//         console_log!("p {:?}", evt);
-//     }
-
-//     // let x = world.collision_object(co).unwrap().data();
-//     world.set_position(co, Isometry::new(Vector::new(-1.0, 0.0), 0.0));
-
-//     world.update();
-//     for evt in world.contact_events() {
-//         console_log!("c {:?}", evt);
-//     }
-//     for evt in world.proximity_events() {
-//         console_log!("p {:?}", evt);
-//     }
-// }
