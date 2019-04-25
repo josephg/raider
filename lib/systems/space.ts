@@ -97,7 +97,9 @@ export const collisionSystem: System = {
     for (let i = 0; i < prox.length; i += 2) {
       const e1 = es.get(prox[i])!
       const e2 = es.get(prox[i+1])!
-      console.log('collide', e1, e2)
+      // console.log('collide', e1, e2)
+      if (e1.collider!.didCollideWith) e1.collider!.didCollideWith(e1, e2)
+      if (e2.collider!.didCollideWith) e2.collider!.didCollideWith(e2, e1)
     }
   },
 

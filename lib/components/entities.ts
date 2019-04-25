@@ -22,6 +22,11 @@ export const enum ShapeType {
   Box,
 }
 
+export const enum UnitType {
+  Player,
+  Enemy,
+}
+
 export type Shape = {
   type: ShapeType.Circle,
   radius: number,
@@ -39,6 +44,7 @@ export interface ShapeC { // Requires transform
 export interface ColliderC {
   cgroup: CGroup,
   handle?: number, // Filled in by the space system.
+  didCollideWith?(self: Entity, other: Entity): void, // ??? Not sure about the signature here.
 }
 
 // export type AIController = () => IterableIterator<void>
@@ -54,7 +60,7 @@ export interface EntityComponents {
   localController?: boolean,
   aiController?: (e: Entity) => IterableIterator<void>, // Iterable | null or something.
   aiControllerInstance?: IterableIterator<void>
-
+  unitType?: UnitType,
   camera?: boolean, // Singleton entity.
   lifetime?: number,
   reap?: true, // flagged when the entity is ready to be destroyed.

@@ -1,4 +1,4 @@
-import { Entities, Entity, addEntity, ShapeType } from "./components/entities"
+import { Entities, Entity, addEntity, ShapeType, UnitType } from "./components/entities"
 import render from "./render"
 import update from "./update"
 import * as wasm from '../crate/Cargo.toml'
@@ -28,67 +28,80 @@ addEntity(es, {
       radius: 0.5,
     }
   },
+  unitType: UnitType.Player,
   collider: { cgroup: CGroup.Unit, },
   localController: true,
 })
 
-addEntity(es, {
-  transform: {
-    x: 0, y: -2, angle: 0, ...stationary,
-  },
-  movable: { rotSpeed: 0, maxSpeed: 8 },
-  shape: {
-    color: 'hotpink',
-    shape: { type: ShapeType.Circle, radius: 0.1 }
-  },
-  collider: { cgroup: CGroup.Projectile, },
-  lifetime: 2 * 60, // in frames, so its an integer :/
-  // aiController: moveForwardBehaviour,
-})
-
 // addEntity(es, {
-//   transform: {x: 0, y: -5, angle: 0, ...stationary},
-//   movable: {
-//     maxSpeed: 3,
-//     rotSpeed: 8, // rads / second.
+//   transform: {
+//     x: 0, y: -2, angle: 0, ...stationary,
 //   },
+//   movable: { rotSpeed: 0, maxSpeed: 8 },
 //   shape: {
-//     color: 'purple',
-//     shape: {
-//       type: ShapeType.Circle,
-//       radius: 2,
-//     }
+//     color: 'hotpink',
+//     shape: { type: ShapeType.Circle, radius: 0.1 }
 //   },
 //   collider: {
-//     cgroup: CGroup.Unit,
-//   },
-//   // localController: true,
-//   aiController: function*(e) {
-//     while (true) {
-//       // yield* turnTo(e, Math.random() * 6)
-//       yield* turnTo(e, 2.2)
-//       yield* stall(20)
-      
-//       const {x, y, angle} = e.transform!
-//       addEntity(es, {
-//         transform: {
-//           x: x + 2 * Math.cos(angle),
-//           y: y + 2 * Math.sin(angle),
-//           angle: angle,
-//           ...stationary,
-//         },
-//         movable: { rotSpeed: 0, maxSpeed: 8 },
-//         shape: {
-//           color: 'hotpink',
-//           shape: { type: ShapeType.Circle, radius: 0.1 }
-//         },
-//         collider: { cgroup: CGroup.Projectile, },
-//         aiController: moveForwardBehaviour,
-//       })
-//       yield* stall(100)
+//     cgroup: CGroup.Projectile,
+//     didCollideWith(self, e) {
+//       self.reap = e.reap = true
 //     }
-//   }
+//   },
+//   lifetime: 2 * 60, // in frames, so its an integer :/
+//   // aiController: moveForwardBehaviour,
 // })
+
+addEntity(es, {
+  transform: {x: 0, y: -5, angle: 0, ...stationary},
+  movable: {
+    maxSpeed: 3,
+    rotSpeed: 8, // rads / second.
+  },
+  shape: {
+    color: 'purple',
+    shape: {
+      type: ShapeType.Circle,
+      radius: 2,
+    }
+  },
+  collider: {
+    cgroup: CGroup.Unit,
+  },
+  unitType: UnitType.Enemy,
+  // localController: true,
+  aiController: function*(e) {
+    while (true) {
+      yield* turnTo(e, Math.random() * 6)
+      // yield* turnTo(e, 2.2)
+      yield* stall(20)
+      
+      const {x, y, angle} = e.transform!
+      addEntity(es, {
+        transform: {
+          x: x + 2 * Math.cos(angle),
+          y: y + 2 * Math.sin(angle),
+          angle: angle,
+          ...stationary,
+        },
+        shape: {
+          color: 'hotpink',
+          shape: { type: ShapeType.Circle, radius: 0.1 }
+        },
+        movable: { rotSpeed: 0, maxSpeed: 8 },
+        aiController: moveForwardBehaviour,
+        collider: {
+          cgroup: CGroup.Projectile,
+          didCollideWith(self, e) {
+            if (e.unitType === UnitType.Player) self.reap = e.reap = true
+          }
+        },
+        lifetime: 2 * 60, // in frames, so its an integer :/
+      })
+      // yield* stall(100)
+    }
+  }
+})
 
 const TAU = Math.PI * 2
 // x, y, w, h, a.
