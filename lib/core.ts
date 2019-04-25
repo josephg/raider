@@ -93,7 +93,9 @@ addEntity(es, {
         collider: {
           cgroup: CGroup.Projectile,
           didCollideWith(self, e) {
-            if (e.unitType === UnitType.Player) self.reap = e.reap = true
+            // if (e.collider!.cgroup === CGroup.Static) self.reap = e.reap = true
+            if (e.collider!.cgroup === CGroup.Static) self.reap = true
+            else if (e.unitType === UnitType.Player) self.reap = e.reap = true
           }
         },
         lifetime: 2 * 60, // in frames, so its an integer :/
