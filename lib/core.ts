@@ -3,18 +3,20 @@ import render from "./render"
 import update from "./update"
 import * as wasm from '../crate/Cargo.toml'
 import { CGroup } from '../crate/Cargo.toml'
-import { turnTo, stall, moveForwardBehaviour } from "./systems/behaviour";
+import { turnTo, moveTo, stall, moveForwardBehaviour } from "./systems/behaviour";
 
 wasm.init()
+
+const dt = 1/60
 
 const es: Entities = new Map<number, Entity>()
 const stationary = {vx: 0, vy: 0, va: 0}
 addEntity(es, {
   transform: {x: 0, y: 0, angle: 0, ...stationary},
   movable: {
-    maxSpeed: 3,
+    maxSpeed: 3*dt,
     // maxSpeed: 30,
-    rotSpeed: 4, // rads / second.
+    rotSpeed: 4*dt, // rads / second.
   },
   shape: {
     color: 'blue',
@@ -33,30 +35,11 @@ addEntity(es, {
   localController: true,
 })
 
-// addEntity(es, {
-//   transform: {
-//     x: 0, y: -2, angle: 0, ...stationary,
-//   },
-//   movable: { rotSpeed: 0, maxSpeed: 8 },
-//   shape: {
-//     color: 'hotpink',
-//     shape: { type: ShapeType.Circle, radius: 0.1 }
-//   },
-//   collider: {
-//     cgroup: CGroup.Projectile,
-//     didCollideWith(self, e) {
-//       self.reap = e.reap = true
-//     }
-//   },
-//   lifetime: 2 * 60, // in frames, so its an integer :/
-//   // aiController: moveForwardBehaviour,
-// })
-
 addEntity(es, {
   transform: {x: 0, y: -5, angle: 0, ...stationary},
   movable: {
-    maxSpeed: 3,
-    rotSpeed: 8, // rads / second.
+    maxSpeed: 3*dt,
+    rotSpeed: 8*dt,
   },
   shape: {
     color: 'purple',
@@ -88,7 +71,7 @@ addEntity(es, {
           color: 'hotpink',
           shape: { type: ShapeType.Circle, radius: 0.1 }
         },
-        movable: { rotSpeed: 0, maxSpeed: 8 },
+        movable: { rotSpeed: 0, maxSpeed: 8*dt },
         aiController: moveForwardBehaviour,
         collider: {
           cgroup: CGroup.Projectile,
@@ -103,6 +86,25 @@ addEntity(es, {
       // yield* stall(100)
     }
   }
+})
+
+const patrolRoute = [
+  {x:-5, y:-3}, {x:-5, y:-5}, {x:-3, y:-5}, {x:-3, y:-3}
+]
+addEntity(es, {
+  transform: {x:-2, y:-2, angle: 0, ...stationary},
+  movable: {maxSpeed: 2*dt, rotSpeed: 4*dt},
+  shape: { color: 'green', shape: {
+    type: ShapeType.Circle,
+    radius: 0.6
+  }},
+  collider: { cgroup: CGroup.Unit },
+  unitType: UnitType.Enemy,
+  aiController: function*(e) {
+    for (let i = 0;; i = (i+1) % patrolRoute.length) {
+      yield* moveTo(e, patrolRoute[i])
+    }
+  },
 })
 
 const TAU = Math.PI * 2

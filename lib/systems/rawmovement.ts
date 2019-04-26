@@ -2,7 +2,6 @@ import { Entity } from "../components/entities";
 import { Vec, v_dist } from "../vec";
 
 // Raw movement functions
-const dt = 1/60
 const TAU = Math.PI * 2
 const normAngle = (a: number) => (a + TAU + TAU) % TAU // 0 to TAU.
 export const getAV = (currentAngle: number, budget: number, targetAngle: number, turnspeed: number): {da: number, budget: number} => {
@@ -22,8 +21,8 @@ export const getAV = (currentAngle: number, budget: number, targetAngle: number,
 
 export const lookTowardA = (e: Entity, budget: number, angle: number) => {
   // Entity must have transform + movable.
-  const {da, budget: budgetRemaining} = getAV(e.transform!.angle, budget, angle, e.movable!.rotSpeed / 60)
-  e.transform!.va = da * 60
+  const {da, budget: budgetRemaining} = getAV(e.transform!.angle, budget, angle, e.movable!.rotSpeed)
+  e.transform!.va = da
   return budgetRemaining
 }
 export const lookTowardXY = (e: Entity, budget: number, target: Vec) => {
@@ -40,22 +39,23 @@ export const moveRaw = (e: Entity, speed: number) => {
   e.transform!.vy += Math.sin(angle) * speed
 }
 
-// export const moveForward = (e: Entity, budget: number, desiredDist: number): number => {
-//   const maxDist = budget * e.movable!.maxSpeed
-//   if (maxDist < desiredDist) {
-//     moveRaw(e, maxDist)
-//     return 0
-//   } else {
-//     moveRaw(e, desiredDist)
-//     return budget - desiredDist / maxDist
-//   }
-// }
+export const moveForward = (e: Entity, budget: number, desiredDist: number): number => {
+  const maxDist = budget * e.movable!.maxSpeed
+  if (maxDist < desiredDist) {
+    moveRaw(e, maxDist)
+    return 0
+  } else {
+    moveRaw(e, desiredDist)
+    return budget - desiredDist / maxDist
+  }
+}
 
-// export const moveToward = (e: Entity, budget: number, target: Vec, desiredRange: number = 0): number => {
-//   budget = lookTowardXY(e, budget, target)
-//   if (budget <= 0) return 0
+export const moveToward = (e: Entity, budget: number, target: Vec, desiredRange: number = 0): number => {
+  // debugger
+  budget = lookTowardXY(e, budget, target)
+  if (budget <= 0) return 0
 
-//   const dist = Math.max(v_dist(e.transform!, target) - desiredRange, 0)
-//   // const dist = vec.dist(e, target) - desiredRange
-//   return moveForward(e, budget, dist)
-// }
+  const dist = Math.max(v_dist(e.transform!, target) - desiredRange, 0)
+  // const dist = vec.dist(e, target) - desiredRange
+  return moveForward(e, budget, dist)
+}

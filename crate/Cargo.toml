@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 #opt-level = "z"
-#lto = true
+lto = true
 opt-level = "s"
 
 [features]

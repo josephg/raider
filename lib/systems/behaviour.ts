@@ -2,7 +2,7 @@ import { Entities, eachEntity, TransformC, Entity } from "../components/entities
 import System from './system'
 import { screenToWorld } from "../render";
 import * as vec from '../vec'
-import { lookTowardXY, lookTowardA, moveRaw } from "./rawmovement";
+import { lookTowardXY, lookTowardA, moveRaw, moveToward } from "./rawmovement";
 
 const keysHeld = new Set()
 const keysPressedThisFrame = []
@@ -36,19 +36,19 @@ export const localController: System = {
     for (const e of eachEntity(es, localController.pred)) {
 
       const playerSpeed = e.movable!.maxSpeed
-      if (keysHeld.has('KeyA')) e.transform!.vx -= playerSpeed
-      if (keysHeld.has('KeyD')) e.transform!.vx += playerSpeed
-      if (keysHeld.has('KeyW')) e.transform!.vy -= playerSpeed
-      if (keysHeld.has('KeyS')) e.transform!.vy += playerSpeed
+      let dx = 0, dy = 0
+      if (keysHeld.has('KeyA')) dx--
+      if (keysHeld.has('KeyD')) dx++
+      if (keysHeld.has('KeyW')) dy--
+      if (keysHeld.has('KeyS')) dy++
+
+      if (dx && dy) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2 }
+
+      e.transform!.vx = dx * playerSpeed
+      e.transform!.vy = dy * playerSpeed
 
       // Look at the mouse
       lookTowardXY(e, 1, {x: mouse.x, y:mouse.y})
-
-      // Global movement controls
-      // if (keysHeld.has('KeyA')) e.transform!.x -= playerSpeed * dt
-      // if (keysHeld.has('KeyD')) e.transform!.x += playerSpeed * dt
-      // if (keysHeld.has('KeyW')) e.transform!.y -= playerSpeed * dt
-      // if (keysHeld.has('KeyS')) e.transform!.y += playerSpeed * dt
     }
 
     keysPressedThisFrame.length = 0
@@ -56,9 +56,9 @@ export const localController: System = {
 }
 
 
-// export function *moveTo(e: Entity, target: vec.Vec, range: number = 0) {
-//   while (moveToward(e, 1, target, range) === 0) yield
-// }
+export function *moveTo(e: Entity, target: vec.Vec, range: number = 0) {
+  while (moveToward(e, 1, target, range) === 0) yield
+}
 
 export function *turnTo(e: Entity, angle: number) {
   while (lookTowardA(e, 1, angle) === 0) yield
@@ -68,10 +68,9 @@ export function *turnTo(e: Entity, angle: number) {
 export function *iwhile<T>(pred: () => boolean, iter: (() => IterableIterator<T>) | Iterator<T>) {
   if (typeof iter === 'function') iter = iter() // Avoids some awkward syntax
 
-  while (true) {
-    if (!pred()) return
+  while (pred()) {
     const {value, done} = iter.next()
-    if (done) return value // Wrap return value of iterator
+    if (done) break
     else yield value
   }
 }

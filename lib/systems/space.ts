@@ -16,16 +16,15 @@ const enum ContactType {
   Removed = 1,
 }
 
-const dt = 1/60
 let debugText = ''
 
 export const simpleMovement: System = {
   pred: (e: Entity) => !e.collider && e.transform && e.shape,
   update(es) {
     for (const e of eachEntity(es, e => this.pred(e) && e.movable)) {
-      e.transform!.x += e.transform!.vx * dt
-      e.transform!.y += e.transform!.vy * dt
-      e.transform!.angle += e.transform!.va * dt
+      e.transform!.x += e.transform!.vx
+      e.transform!.y += e.transform!.vy
+      e.transform!.angle += e.transform!.va
 
       e.transform!.vx = e.transform!.vy = e.transform!.va = 0
     }
@@ -50,7 +49,7 @@ export const collisionSystem: System = {
         : null as any
 
       const speed = e.movable ? e.movable.maxSpeed : 0
-      const handle = e.collider!.handle = world.add(e.id, x, y, angle, shape, cgroup, Math.SQRT2 * speed / 60)
+      const handle = e.collider!.handle = world.add(e.id, x, y, angle, shape, cgroup, speed)
       // console.log('added handle', handle, cgroup)
       // entityByRef.set(handle, e)
     }
@@ -70,9 +69,9 @@ export const collisionSystem: System = {
       const {x, y, angle, vx, vy, va} = e.transform!
       if (vx !== 0 || vy !== 0 || va !== 0) {
         // console.log(vx, vy, va)
-        const [newx, newy, newa] = world.try_move(e.collider!.handle!, vx * dt, vy * dt, va * dt)
+        const [newx, newy, newa] = world.try_move(e.collider!.handle!, vx, vy, va)
         ;[e.transform!.x, e.transform!.y, e.transform!.angle] = [newx, newy, newa]
-        // e.transform!.angle += e.transform!.va * dt
+        // e.transform!.angle += e.transform!.va
         e.transform!.vx = e.transform!.vy = e.transform!.va = 0
       }
     }
