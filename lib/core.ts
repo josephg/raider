@@ -156,24 +156,29 @@ addEntity(es, {
   camera: true,
 })
 
-let running = document.hasFocus()
+let hasFocus = document.hasFocus()
+let running = true
 const frame = () => {
   update(es)
   render(es)
   
-  if (running) requestAnimationFrame(frame)
+  if (hasFocus) requestAnimationFrame(frame)
+  else running = false
 }
 frame()
 
 // I would use document.onblur/focus but they don't do anything in chrome.
 window.onblur = () => {
-  running = false
+  hasFocus = false
   console.log('paused')
 }
 window.onfocus = () => {
-  running = true
+  hasFocus = true
   console.log('resumed')
-  frame()
+  if (running == false) {
+    running = true
+    frame()
+  }
 }
 
 // wasm.take_enum(wasm.MyEnum.Zot)
